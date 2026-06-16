@@ -1133,19 +1133,31 @@ async function alertSDR() {
 
   btn.disabled = true; btn.textContent = "Sending…";
   try {
-    // Use no-cors + form-encoded payload — avoids CORS preflight that Slack webhooks don't allow
+    // Approach 1: raw JSON body, no explicit Content-Type header.
+    // Browser defaults to text/plain — a CORS-safe type, no preflight triggered.
+    // Slack accepts JSON payloads even with text/plain content-type.
     await fetch(url, {
       method: "POST",
       mode: "no-cors",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: "payload=" + encodeURIComponent(JSON.stringify(payload)),
+      body: JSON.stringify(payload),
     });
-    // no-cors returns opaque response (unreadable), but request was delivered if no network error
+    // no-cors returns an opaque response (status unreadable) — reaching here means the request went out
     result.className = "handoff-result ok";
     result.textContent = `✅ Alert sent to Slack for ${p.name} (Priority ${s.priority}). Check your Slack channel.`;
   } catch (e) {
-    result.className = "handoff-result fail";
-    result.textContent = `Could not reach the webhook (${e.message}). Check the URL is correct and active.`;
+    // Fallback: try FormData (multipart/form-data — also a CORS-safe type)
+    try {
+      const fd = new FormData();
+      fd.append("payload", JSON.stringify(payload));
+      await fetch(url, { method: "POST", mode: "no-cors", body: fd });
+      result.className = "handoff-result ok";
+      result.textContent = `✅ Alert sent to Slack for ${p.name} (Priority ${s.priority}). Check your Slack channel.`;
+    } catch (e2) {
+      result.className = "handoff-result fail";
+      result.innerHTML = `Could not reach the webhook (${e2.message}).<br><br>` +
+        `<strong>Alternative:</strong> run this in your terminal:<br>` +
+        `<code style="font-size:11px;word-break:break-all">curl -X POST '${esc(url)}' -H 'Content-Type: application/json' -d '${JSON.stringify(payload).replace(/'/g, "'\\''")}'</code>`;
+    }
   } finally {
     btn.disabled = false; btn.textContent = "🔔 Alert SDR";
   }
