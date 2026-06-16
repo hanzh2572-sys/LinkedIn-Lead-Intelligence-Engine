@@ -826,11 +826,11 @@ function loadCSV(raw) {
 const COLS = [
   { key: "name",    label: "Name" },
   { key: "title",   label: "Title" },
-  { key: "tenure",  label: "Tenure" },
   { key: "prev",    label: "Previous Companies" },
+  { key: "linkedin",label: "LinkedIn URL" },
+  { key: "tenure",  label: "Tenure" },
   { key: "tech",    label: "Tech Stack" },
   { key: "recent",  label: "Recent Activity" },
-  { key: "mutual",  label: "Mutual" },
 ];
 
 function renderProspectTable() {
@@ -846,9 +846,9 @@ function renderProspectTable() {
         case "title": return (TITLE_FIT[p.title] || 0);
         case "tenure": return parseFloat(p.tenure) || 0;
         case "prev": return (p.previousCompanies[0] || "").toLowerCase();
+        case "linkedin": return (p.linkedinUrl || "").toLowerCase();
         case "tech": return (p.techStack[0] || "").toLowerCase();
-        case "recent": return p.recentActivity.toLowerCase();
-        case "mutual": return p.mutualConnections;
+        case "recent": return (p.recentActivity || "").toLowerCase();
       }
     };
     list.sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * d; });
@@ -865,11 +865,11 @@ function renderProspectTable() {
             return `<tr class="${sel}" onclick="selectProspect(${realIdx})">
               <td><div class="cell-name">${esc(p.name)}</div><div class="cell-loc">${esc(p.location)}</div></td>
               <td>${esc(p.title)}</td>
-              <td>${esc(p.tenure)}</td>
-              <td class="prev-co">${p.previousCompanies.length ? esc(p.previousCompanies.join(", ")) : "—"}</td>
-              <td><div class="pills">${p.techStack.map(t => `<span class="pill">${esc(t)}</span>`).join("") || "—"}</div></td>
-              <td class="truncate" title="${esc(p.recentActivity)}">${esc(p.recentActivity)}</td>
-              <td><span class="mutual">${p.mutualConnections}</span></td>
+              <td class="prev-co">${p.previousCompanies && p.previousCompanies.length ? esc(p.previousCompanies.join(", ")) : ""}</td>
+              <td class="truncate">${p.linkedinUrl ? `<a href="${esc(p.linkedinUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="color:var(--indigo);font-size:11.5px;word-break:break-all">${esc(p.linkedinUrl)}</a>` : ""}</td>
+              <td>${esc(p.tenure) || ""}</td>
+              <td><div class="pills">${p.techStack && p.techStack.length ? p.techStack.map(t => `<span class="pill">${esc(t)}</span>`).join("") : ""}</div></td>
+              <td class="truncate" title="${esc(p.recentActivity)}">${esc(p.recentActivity) || ""}</td>
             </tr>`;
           }).join("")}
         </tbody>
@@ -1088,24 +1088,47 @@ function stage7_handoff() {
   const s = state.scores;
   if (!p || !s) return;
 
-  const existing = document.getElementById("stage7");
-  if (s.priority < 75) {
-    if (existing) existing.remove();
-    setNav(7, "pending");
-    return;
-  }
+  const qualifies = s.priority >= 70;
+  const inCowork = typeof window.cowork !== "undefined";
+  const subtitle = qualifies
+    ? "Priority ≥ 70 — auto-alerting SDR team."
+    : "This prospect is below threshold — you can still alert manually.";
 
   setNav(7, "active");
-  const card = stageCard("stage7", 7, "SDR Handoff", "This prospect qualifies — alert your SDR team.");
-  cardBody(card).innerHTML = `
-    <div class="field" style="margin-bottom:12px">
-      <label for="webhook">Slack Webhook URL (optional)</label>
-      <input type="url" id="webhook" placeholder="https://hooks.slack.com/services/..." />
-    </div>
-    <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
-    <div class="handoff-result" id="handoffResult"></div>
-    <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
-  `;
+  const card = stageCard("stage7", 7, "SDR Handoff", subtitle);
+
+  if (inCowork) {
+    // Inside Cowork: route through Slack MCP (server-side, no sandbox restrictions)
+    cardBody(card).innerHTML = `
+      <div class="field" style="margin-bottom:12px">
+        <label for="slackChannel">Slack Channel</label>
+        <input type="text" id="slackChannel" placeholder="#sdr-alerts" />
+      </div>
+      <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
+      <div class="handoff-result" id="handoffResult"></div>
+      <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
+    `;
+    if (qualifies) {
+      document.getElementById("slackChannel").value = "growth-marketing";
+      setTimeout(alertSDR, 300);
+    }
+  } else {
+    // Outside Cowork (GitHub Pages, browser): direct webhook fetch
+    cardBody(card).innerHTML = `
+      <div class="field" style="margin-bottom:12px">
+        <label for="webhook">Slack Webhook URL (optional)</label>
+        <input type="url" id="webhook" placeholder="https://hooks.slack.com/services/..." />
+      </div>
+      <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
+      <div class="handoff-result" id="handoffResult"></div>
+      <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
+    `;
+    if (qualifies) {
+      document.getElementById("webhook").value = "https://hooks.slack.com/services/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";
+      setTimeout(alertSDR, 300);
+    }
+  }
+
   cardStatus(card, `<span class="status done">✓ Ready</span>`);
   setNav(7, "done");
 }
@@ -1113,54 +1136,59 @@ function stage7_handoff() {
 async function alertSDR() {
   const p = currentProspect();
   const s = state.scores;
-  const url = document.getElementById("webhook").value.trim();
   const result = document.getElementById("handoffResult");
   const btn = document.getElementById("alertBtn");
+  const inCowork = typeof window.cowork !== "undefined";
 
-  const payload = {
-    text: `🎯 *New SDR Handoff — ${state.company}*\n` +
-      `*${p.name}* — ${p.title}\n` +
-      `📍 ${p.location}\n` +
-      `Scores → Fit ${s.fit} · Intent ${s.intent} · *Priority ${s.priority}*\n` +
-      `🔗 ${p.linkedinUrl || "(no LinkedIn URL)"}`,
-  };
-
-  if (!url) {
-    result.className = "handoff-result fail";
-    result.textContent = "Enter a Slack webhook URL first — or copy the messages above into LinkedIn manually.";
-    return;
-  }
+  const messageText = `🎯 *New SDR Handoff — ${state.company}*\n` +
+    `*${p.name}* — ${p.title}\n` +
+    `📍 ${p.location}\n` +
+    `Scores → Fit ${s.fit} · Intent ${s.intent} · *Priority ${s.priority}*\n` +
+    `🔗 ${p.linkedinUrl || "(no LinkedIn URL)"}`;
 
   btn.disabled = true; btn.textContent = "Sending…";
-  try {
-    // Approach 1: raw JSON body, no explicit Content-Type header.
-    // Browser defaults to text/plain — a CORS-safe type, no preflight triggered.
-    // Slack accepts JSON payloads even with text/plain content-type.
-    await fetch(url, {
-      method: "POST",
-      mode: "no-cors",
-      body: JSON.stringify(payload),
-    });
-    // no-cors returns an opaque response (status unreadable) — reaching here means the request went out
-    result.className = "handoff-result ok";
-    result.textContent = `✅ Alert sent to Slack for ${p.name} (Priority ${s.priority}). Check your Slack channel.`;
-  } catch (e) {
-    // Fallback: try FormData (multipart/form-data — also a CORS-safe type)
-    try {
-      const fd = new FormData();
-      fd.append("payload", JSON.stringify(payload));
-      await fetch(url, { method: "POST", mode: "no-cors", body: fd });
-      result.className = "handoff-result ok";
-      result.textContent = `✅ Alert sent to Slack for ${p.name} (Priority ${s.priority}). Check your Slack channel.`;
-    } catch (e2) {
+
+  if (inCowork) {
+    // Route through Slack MCP — server-side, bypasses sandbox CSP entirely
+    const channel = (document.getElementById("slackChannel")?.value || "").trim();
+    if (!channel) {
       result.className = "handoff-result fail";
-      result.innerHTML = `Could not reach the webhook (${e2.message}).<br><br>` +
-        `<strong>Alternative:</strong> run this in your terminal:<br>` +
-        `<code style="font-size:11px;word-break:break-all">curl -X POST '${esc(url)}' -H 'Content-Type: application/json' -d '${JSON.stringify(payload).replace(/'/g, "'\\''")}'</code>`;
+      result.textContent = "Enter a Slack channel name (e.g. general or #sdr-alerts).";
+      btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+      return;
     }
-  } finally {
-    btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+    try {
+      const r = await window.cowork.callMcpTool(
+        "mcp__667e55c9-f9d7-44ba-9891-06936fdc7dc0__slack_send_message",
+        { channel_id: channel, text: messageText }
+      );
+      if (r && r.isError) throw new Error(r.content?.[0]?.text || "MCP error");
+      result.className = "handoff-result ok";
+      result.textContent = `✅ Alert sent to #${channel.replace(/^#/, "")} for ${p.name} (Priority ${s.priority}).`;
+    } catch (e) {
+      result.className = "handoff-result fail";
+      result.textContent = `Slack MCP error: ${e.message}`;
+    }
+  } else {
+    // Outside Cowork (GitHub Pages / browser) — direct webhook fetch
+    const url = (document.getElementById("webhook")?.value || "").trim();
+    if (!url) {
+      result.className = "handoff-result fail";
+      result.textContent = "Enter a Slack webhook URL first.";
+      btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+      return;
+    }
+    try {
+      await fetch(url, { method: "POST", mode: "no-cors", body: JSON.stringify({ text: messageText }) });
+      result.className = "handoff-result ok";
+      result.textContent = `✅ Alert sent for ${p.name} (Priority ${s.priority}). Check your Slack channel.`;
+    } catch (e) {
+      result.className = "handoff-result fail";
+      result.textContent = `Could not reach the webhook (${e.message}).`;
+    }
   }
+
+  btn.disabled = false; btn.textContent = "🔔 Alert SDR";
 }
 
 /* =================================================================
