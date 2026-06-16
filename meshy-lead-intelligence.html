@@ -1089,25 +1089,42 @@ function stage7_handoff() {
   if (!p || !s) return;
 
   const qualifies = s.priority >= 70;
+  const inCowork = typeof window.cowork !== "undefined";
   const subtitle = qualifies
     ? "Priority ≥ 70 — auto-alerting SDR team."
     : "This prospect is below threshold — you can still alert manually.";
 
   setNav(7, "active");
   const card = stageCard("stage7", 7, "SDR Handoff", subtitle);
-  cardBody(card).innerHTML = `
-    <div class="field" style="margin-bottom:12px">
-      <label for="webhook">Slack Webhook URL (optional)</label>
-      <input type="url" id="webhook" placeholder="https://hooks.slack.com/services/..." />
-    </div>
-    <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
-    <div class="handoff-result" id="handoffResult"></div>
-    <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
-  `;
+
+  if (inCowork) {
+    cardBody(card).innerHTML = `
+      <div class="field" style="margin-bottom:12px">
+        <label for="slackChannel">Slack Channel</label>
+        <input type="text" id="slackChannel" placeholder="#sdr-alerts" />
+      </div>
+      <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
+      <div class="handoff-result" id="handoffResult"></div>
+      <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
+    `;
+    if (qualifies) {
+      document.getElementById("slackChannel").value = "C05H4CN6A9G";
+      setTimeout(alertSDR, 300);
+    }
+  } else {
+    cardBody(card).innerHTML = `
+      <div class="field" style="margin-bottom:12px">
+        <label for="webhook">Slack Webhook URL (optional)</label>
+        <input type="url" id="webhook" placeholder="https://hooks.slack.com/services/..." />
+      </div>
+      <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
+      <div class="handoff-result" id="handoffResult"></div>
+      <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
+    `;
+  }
+
   cardStatus(card, `<span class="status done">✓ Ready</span>`);
   setNav(7, "done");
-
-  // Paste your Slack webhook URL into the field above to send an alert
 }
 
 async function alertSDR() {
@@ -1115,6 +1132,7 @@ async function alertSDR() {
   const s = state.scores;
   const result = document.getElementById("handoffResult");
   const btn = document.getElementById("alertBtn");
+  const inCowork = typeof window.cowork !== "undefined";
 
   const messageText = `🎯 *New SDR Handoff — ${state.company}*\n` +
     `*${p.name}* — ${p.title}\n` +
@@ -1124,20 +1142,42 @@ async function alertSDR() {
 
   btn.disabled = true; btn.textContent = "Sending…";
 
-  const url = (document.getElementById("webhook")?.value || "").trim();
-  if (!url) {
-    result.className = "handoff-result fail";
-    result.textContent = "Enter a Slack webhook URL first.";
-    btn.disabled = false; btn.textContent = "🔔 Alert SDR";
-    return;
-  }
-  try {
-    await fetch(url, { method: "POST", mode: "no-cors", body: JSON.stringify({ text: messageText }) });
-    result.className = "handoff-result ok";
-    result.textContent = `✅ Alert sent for ${p.name} (Priority ${s.priority}). Check your Slack channel.`;
-  } catch (e) {
-    result.className = "handoff-result fail";
-    result.textContent = `Could not reach the webhook (${e.message}).`;
+  if (inCowork) {
+    const channel = (document.getElementById("slackChannel")?.value || "").trim();
+    if (!channel) {
+      result.className = "handoff-result fail";
+      result.textContent = "Enter a Slack channel name (e.g. growth-marketing).";
+      btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+      return;
+    }
+    try {
+      const r = await window.cowork.callMcpTool(
+        "mcp__667e55c9-f9d7-44ba-9891-06936fdc7dc0__slack_send_message",
+        { channel_id: channel, message: messageText }
+      );
+      if (r && r.isError) throw new Error(r.content?.[0]?.text || "MCP error");
+      result.className = "handoff-result ok";
+      result.textContent = `✅ Alert sent to #${channel.replace(/^#/, "")} for ${p.name} (Priority ${s.priority}).`;
+    } catch (e) {
+      result.className = "handoff-result fail";
+      result.textContent = `Slack error: ${e.message}`;
+    }
+  } else {
+    const url = (document.getElementById("webhook")?.value || "").trim();
+    if (!url) {
+      result.className = "handoff-result fail";
+      result.textContent = "Enter a Slack webhook URL first.";
+      btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+      return;
+    }
+    try {
+      await fetch(url, { method: "POST", mode: "no-cors", body: JSON.stringify({ text: messageText }) });
+      result.className = "handoff-result ok";
+      result.textContent = `✅ Alert sent for ${p.name} (Priority ${s.priority}). Check your Slack channel.`;
+    } catch (e) {
+      result.className = "handoff-result fail";
+      result.textContent = `Could not reach the webhook (${e.message}).`;
+    }
   }
 
   btn.disabled = false; btn.textContent = "🔔 Alert SDR";
