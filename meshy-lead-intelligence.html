@@ -345,7 +345,7 @@ const state = {
   company: "",
   website: "",
   domain: "",
-  method: "ai",            // ai | apollo | csv
+  method: "csv",           // csv | ai | apollo
   prospects: [],
   selectedIndex: 0,
   research: null,
@@ -357,13 +357,13 @@ const state = {
 };
 
 const TITLE_FIT = {
-  "Technical Art Director": 95,
-  "Principal Technical Artist": 92,
+  "Technical Art Director": 90,
+  "Principal Technical Artist": 80,
   "Head of Art": 90,
-  "Lead 3D Artist": 88,
+  "Lead 3D Artist": 90,
   "Art Director": 85,
-  "VFX Supervisor": 82,
-  "Creative Operations Manager": 74,
+  "VFX Supervisor": 70,
+  "Creative Operations Manager": 70,
 };
 const TARGET_TITLES = Object.keys(TITLE_FIT);
 
@@ -564,13 +564,11 @@ async function stage2_discovery() {
   const card = stageCard("stage2", 2, "Prospect Discovery", "Find decision-makers at " + state.company + ". Switch methods, or click a row to retarget the pipeline.");
   cardBody(card).innerHTML = `
     <div class="tabs">
+      <div class="tab ${state.method==='csv'?'active':''}" data-m="csv" onclick="switchMethod('csv')">📂 Manual CSV</div>
       <div class="tab ${state.method==='ai'?'active':''}" data-m="ai" onclick="switchMethod('ai')">🤖 AI Synthesis</div>
       <div class="tab ${state.method==='apollo'?'active':''}" data-m="apollo" onclick="switchMethod('apollo')">Apollo (live)</div>
-      <div class="tab ${state.method==='csv'?'active':''}" data-m="csv" onclick="switchMethod('csv')">📂 Manual CSV</div>
     </div>
     <div id="methodNotice"></div>
-    <div id="tab-ai" class="tab-body ${state.method==='ai'?'active':''}"></div>
-    <div id="tab-apollo" class="tab-body ${state.method==='apollo'?'active':''}"></div>
     <div id="tab-csv" class="tab-body ${state.method==='csv'?'active':''}">
       <p style="font-size:12.5px;color:var(--text-soft);margin:0 0 10px">Upload a CSV file — columns: <code>Name, Title, Previous Companies, LinkedIn URL, Tenure, Tech Stack</code>. Use a pipe (<code>|</code>) to separate multiple values in a cell.</p>
       <label id="csvDropZone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:2px dashed var(--border);border-radius:10px;padding:28px 20px;cursor:pointer;color:var(--text-soft);font-size:13px;transition:border-color .2s,background .2s" ondragover="event.preventDefault();this.style.borderColor='var(--accent)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleCSVDrop(event)">
@@ -579,7 +577,9 @@ async function stage2_discovery() {
         <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none" onchange="loadCSVFile(this.files[0])">
       </label>
     </div>
-    <div id="prospectTableWrap" style="margin-top:18px"></div>
+    <div id="tab-ai" class="tab-body ${state.method==='ai'?'active':''}"></div>
+    <div id="tab-apollo" class="tab-body ${state.method==='apollo'?'active':''}"></div>
+<div id="prospectTableWrap" style="margin-top:18px"></div>
   `;
   await runMethod(state.method, card);
 }
@@ -593,7 +593,14 @@ function switchMethod(m) {
   });
   document.getElementById("methodNotice").innerHTML = "";
   const card = document.getElementById("stage2");
-  if (m === "ai" || m === "apollo") runMethod(m, card);
+  if (m === "csv") {
+    // clear any previous AI/Apollo results so stale data never shows
+    state.prospects = [];
+    document.getElementById("prospectTableWrap").innerHTML = "";
+    cardStatus(card, "");
+  } else {
+    runMethod(m, card);
+  }
 }
 
 async function runMethod(m, card) {
@@ -733,30 +740,80 @@ function loadCSVFile(file) {
   reader.readAsText(file);
 }
 
+// Parse a CSV row handling quoted fields correctly
+function parseCSVRow(row) {
+  const cols = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < row.length; i++) {
+    const ch = row[i];
+    if (ch === '"') { inQ = !inQ; }
+    else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ""; }
+    else { cur += ch; }
+  }
+  cols.push(cur.trim());
+  return cols;
+}
+
 function loadCSV(raw) {
   if (typeof raw !== "string") raw = "";
   raw = raw.trim();
   if (!raw) { toast("CSV file appears empty"); return; }
   const rows = raw.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+  if (rows.length < 2) { toast("CSV needs at least a header row and one data row"); return; }
+
+  // Parse header to detect format (Apollo vs custom)
+  const headers = parseCSVRow(rows[0]).map(h => h.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  const isApollo = headers.includes("firstname") || headers.includes("lastname");
+
+  // Build column index map
+  const idx = {};
+  headers.forEach((h, i) => { idx[h] = i; });
+
+  const get = (row, ...keys) => {
+    for (const k of keys) {
+      const v = row[idx[k]];
+      if (v !== undefined && v !== "") return v;
+    }
+    return "";
+  };
+
   const list = [];
-  for (const row of rows) {
-    const cols = row.split(",").map(c => c.trim());
+  for (let r = 1; r < rows.length; r++) {
+    const cols = parseCSVRow(rows[r]);
     if (cols.length < 2) continue;
-    // skip header-looking row
-    if (/^name$/i.test(cols[0]) && /^title$/i.test(cols[1] || "")) continue;
-    list.push(normalizeProspect({
-      name: cols[0],
-      title: cols[1] || "Art Director",
-      previousCompanies: (cols[2] || "").split("|").map(s => s.trim()).filter(Boolean),
-      linkedinUrl: cols[3] || "",
-      tenure: cols[4] || "—",
-      techStack: (cols[5] || "").split("|").map(s => s.trim()).filter(Boolean),
-      recentActivity: "Imported from CSV",
-      mutualConnections: rint(2, 25),
-      location: "—",
-    }));
+
+    let name, title, prevCos, linkedinUrl, tenure, techStack, location, recentActivity;
+
+    if (isApollo) {
+      // Apollo CSV column mapping
+      const first = get(cols, "firstname", "first name", "firstname");
+      const last  = get(cols, "lastname",  "last name",  "lastname");
+      name        = [first, last].filter(Boolean).join(" ") || get(cols, "name");
+      title       = get(cols, "title", "jobtitle", "job title");
+      linkedinUrl = get(cols, "linkedinurl", "linkedin url", "linkedin");
+      location    = [get(cols, "city"), get(cols, "state"), get(cols, "country")].filter(Boolean).join(", ");
+      tenure      = get(cols, "tenure", "employment length") || "—";
+      // Apollo doesn't have prev companies / tech stack — leave empty
+      prevCos     = [];
+      techStack   = [];
+      recentActivity = get(cols, "recentactivity", "recent activity") || "Imported from Apollo";
+    } else {
+      // Custom format: Name, Title, Previous Companies, LinkedIn URL, Tenure, Tech Stack
+      name        = cols[0] || "";
+      title       = cols[1] || "Art Director";
+      prevCos     = (cols[2] || "").split("|").map(s => s.trim()).filter(Boolean);
+      linkedinUrl = cols[3] || "";
+      tenure      = cols[4] || "—";
+      techStack   = (cols[5] || "").split("|").map(s => s.trim()).filter(Boolean);
+      location    = cols[6] || "—";
+      recentActivity = "Imported from CSV";
+    }
+
+    if (!name) continue;
+    list.push(normalizeProspect({ name, title, previousCompanies: prevCos, linkedinUrl, tenure, techStack, recentActivity, mutualConnections: rint(2, 25), location }));
   }
-  if (!list.length) { toast("No valid rows parsed"); return; }
+
+  if (!list.length) { toast("No valid rows found — check your CSV format"); return; }
   state.prospects = list.filter(Boolean);
   state.selectedIndex = 0;
   renderProspectTable();
@@ -911,16 +968,17 @@ async function stage45_sequence() {
       company: state.company,
       research: state.research,
     };
-    // pick a Meshy asset example relevant to prospect's title
+    // pick the most relevant Meshy resource page (Learn / Plugins / Tools / Programs) by title
     const MESHY_ASSETS = {
-      "Technical Art Director": { label: "Pipeline Integration Demo", url: "https://www.meshy.ai/blog/how-to-use-meshy-in-your-3d-pipeline", desc: "how studios plug Meshy into their existing Maya/Houdini pipeline to cut asset iteration time by 60%" },
-      "Art Director": { label: "Style-Consistent Batch Generation", url: "https://www.meshy.ai/blog/ai-3d-model-generator", desc: "how art directors use Meshy to generate style-consistent prop variants in minutes instead of days" },
-      "Lead 3D Artist": { label: "Character & Prop Speed Run", url: "https://www.meshy.ai/blog/text-to-3d", desc: "a Lead 3D Artist generating 50 character variants from text prompts in under an hour" },
-      "VFX Supervisor": { label: "Environment Asset Generation", url: "https://www.meshy.ai/blog/ai-3d-model-generator", desc: "how VFX teams use Meshy to generate hero environment assets and background set pieces on demand" },
-      "Head of Art": { label: "Team Scaling Case Study", url: "https://www.meshy.ai/blog/ai-3d-model-generator", desc: "how one studio doubled creative output without headcount by integrating Meshy into their art pipeline" },
-      "Principal Technical Artist": { label: "Tool Integration Guide", url: "https://www.meshy.ai/blog/how-to-use-meshy-in-your-3d-pipeline", desc: "how Technical Artists use Meshy's API to automate LOD generation and texture baking inside existing tools" },
+      "Technical Art Director":    { label: "Unreal Engine Plugin",        url: "https://www.meshy.ai/integrations/unreal-engine",      desc: "Meshy's native Unreal Engine plugin — import AI-generated assets directly into UE5 without leaving the editor, with LOD and PBR texture support out of the box" },
+      "Principal Technical Artist":{ label: "Maya Plugin Guide",           url: "https://www.meshy.ai/integrations/maya",               desc: "Meshy's Maya plugin — generate and import AI 3D assets from inside Maya with batch generation and full PBR texture export support" },
+      "Lead 3D Artist":            { label: "Text-to-3D Feature Overview", url: "https://www.meshy.ai/features/text-to-3d",             desc: "Meshy's text-to-3D pipeline — generate characters, props, and environments from text prompts with PBR textures in seconds" },
+      "Art Director":              { label: "AI Texture Generator",        url: "https://www.meshy.ai/features/ai-texture-generator",   desc: "Meshy's AI Texture Generator — apply unlimited style-consistent textures to any mesh via text prompt, ideal for rapid art direction across prop variants" },
+      "VFX Supervisor":            { label: "VFX Use Cases",               url: "https://www.meshy.ai/use-cases/vfx",                  desc: "how VFX teams use Meshy to generate hero assets, environment pieces, and previs models at a fraction of traditional cost and turnaround time" },
+      "Head of Art":               { label: "Studio Customer Stories",     url: "https://www.meshy.ai/customers",                      desc: "how studios including Nexon, Square Enix, and DNEG have used Meshy to scale 3D content production without growing headcount proportionally" },
+      "Creative Operations Manager":{ label: "Meshy API Platform",         url: "https://www.meshy.ai/api",                            desc: "Meshy's REST API — programmatically trigger 3D generation, manage credits, and integrate AI asset creation into any production pipeline or automation workflow" },
     };
-    const asset = MESHY_ASSETS[p.title] || { label: "Meshy 3D Generation Demo", url: "https://www.meshy.ai", desc: "how teams use Meshy to generate production-ready 3D assets from text and images" };
+    const asset = MESHY_ASSETS[p.title] || { label: "Meshy Tutorials", url: "https://www.meshy.ai/tutorials", desc: "Meshy's step-by-step tutorial library for integrating AI 3D generation into game dev, VFX, and animation workflows" };
 
     const prompt = `OUTPUT ONLY VALID JSON. No preamble, no explanation, no markdown. Start with { and end with }.\n\n` +
       `Write a 5-touch LinkedIn outreach sequence for Meshy (AI 3D-asset generation platform).\n` +
@@ -990,7 +1048,7 @@ function stage6_scoring() {
   const base = TITLE_FIT[p.title] || 75;
   let fit = base + rint(-5, 5);
   fit = Math.min(99, Math.max(50, fit));
-  const intent = rint(70, 92);
+  const intent = rint(60, 90);
   const priority = Math.round(fit * 0.5 + intent * 0.5);
 
   state.scores = { fit, intent, priority };
@@ -1001,7 +1059,7 @@ function stage6_scoring() {
       ${scoreBox("intent", "Intent Score", intent)}
       ${scoreBox("prio", "Priority Score", priority)}
     </div>
-    ${priority >= 75 ? `<div class="reco-banner">🎯 Priority score ${priority} exceeds threshold — recommended for SDR handoff.</div>` : `<div class="notice indigo">Priority score ${priority} is below the 75 handoff threshold — keep nurturing.</div>`}
+    ${priority >= 70 ? `<div class="reco-banner">🎯 Priority score ${priority} exceeds threshold — recommended for SDR handoff.</div>` : `<div class="notice indigo">Priority score ${priority} is below the 70 handoff threshold — keep nurturing.</div>`}
   `;
   cardStatus(card, `<span class="status done">✓ Priority ${priority}</span>`);
   setNav(6, "done");
