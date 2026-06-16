@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meshy Lead Intelligence Engine</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f7f8fa;
+    --sidebar: #0f1117;
+    --sidebar-soft: #1a1d29;
+    --card: #ffffff;
+    --border: #e6e8ec;
+    --text: #1a1d29;
+    --text-soft: #6b7280;
+    --text-faint: #9ca3af;
+    --indigo: #6366f1;
+    --indigo-soft: #eef0ff;
+    --indigo-dark: #4f46e5;
+    --green: #10b981;
+    --green-soft: #ecfdf5;
+    --amber: #f59e0b;
+    --amber-soft: #fffbeb;
+    --gray: #9ca3af;
+    --red: #ef4444;
+    --red-soft: #fef2f2;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(16,17,41,0.04), 0 4px 16px rgba(16,17,41,0.04);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .app { display: flex; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: 220px;
+    background: var(--sidebar);
+    color: #e5e7eb;
+    padding: 24px 18px;
+    display: flex;
+    flex-direction: column;
+    z-index: 20;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .brand-logo {
+    width: 30px; height: 30px; border-radius: 8px;
+    background: linear-gradient(135deg, var(--indigo), #8b5cf6);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; color: #fff; font-size: 15px;
+  }
+  .brand-name { font-weight: 650; font-size: 14px; color: #fff; letter-spacing: -0.01em; }
+  .brand-sub { font-size: 11px; color: #6b7280; margin: 2px 0 26px 40px; }
+
+  .stage-nav { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+  .stage-item {
+    display: flex; align-items: center; gap: 11px;
+    padding: 9px 10px; border-radius: 8px;
+    color: #9ca3af; font-size: 12.5px;
+    transition: background 0.15s, color 0.15s;
+    cursor: default;
+  }
+  .stage-item .dot {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--sidebar-soft);
+    border: 1.5px solid #2a2e3d;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600; color: #6b7280;
+    flex-shrink: 0; transition: all 0.2s;
+  }
+  .stage-item.active { background: rgba(99,102,241,0.12); color: #fff; }
+  .stage-item.active .dot { border-color: var(--indigo); background: var(--indigo); color: #fff; }
+  .stage-item.done { color: #d1d5db; }
+  .stage-item.done .dot { border-color: var(--green); background: var(--green); color: #fff; }
+  .stage-item .label { line-height: 1.3; }
+  .stage-item .label small { display: block; font-size: 10.5px; color: #6b7280; }
+
+  .sidebar-foot { font-size: 10.5px; color: #4b5563; margin-top: 16px; }
+
+  /* ---------- Main ---------- */
+  .main {
+    margin-left: 220px;
+    flex: 1;
+    padding: 32px 40px 80px;
+    max-width: 1000px;
+  }
+  .page-head { margin-bottom: 24px; }
+  .page-head h1 { font-size: 22px; font-weight: 680; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .page-head p { color: var(--text-soft); margin: 0; font-size: 13.5px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 22px 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .card-head .titles { display: flex; align-items: center; gap: 10px; }
+  .stage-badge {
+    font-size: 11px; font-weight: 600; color: var(--indigo);
+    background: var(--indigo-soft); padding: 3px 9px; border-radius: 20px;
+  }
+  .card h2 { font-size: 15.5px; font-weight: 640; margin: 0; letter-spacing: -0.01em; }
+  .card .subtitle { font-size: 12.5px; color: var(--text-soft); margin: 2px 0 0; }
+
+  /* status badges */
+  .status { font-size: 11.5px; font-weight: 600; padding: 4px 11px; border-radius: 20px; display: inline-flex; align-items: center; gap: 6px; }
+  .status.done { background: var(--green-soft); color: #047857; }
+  .status.err { background: var(--red-soft); color: #b91c1c; }
+
+  /* spinner */
+  .loading { display: flex; align-items: center; gap: 11px; color: var(--text-soft); font-size: 13px; padding: 8px 0; }
+  .spinner {
+    width: 17px; height: 17px; border-radius: 50%;
+    border: 2.5px solid var(--indigo-soft); border-top-color: var(--indigo);
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* inputs */
+  .field-row { display: flex; gap: 14px; }
+  .field { flex: 1; }
+  .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-soft); margin-bottom: 6px; }
+  input[type=text], input[type=url], input[type=password], textarea {
+    width: 100%; padding: 10px 12px; font-size: 13.5px; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 9px; background: #fff; color: var(--text);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  input:focus, textarea:focus { outline: none; border-color: var(--indigo); box-shadow: 0 0 0 3px var(--indigo-soft); }
+  textarea { resize: vertical; min-height: 110px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; justify-content: center;
+    padding: 10px 18px; font-size: 13.5px; font-weight: 600; font-family: inherit;
+    border: none; border-radius: 9px; cursor: pointer;
+    background: var(--indigo); color: #fff; transition: background 0.15s, transform 0.05s;
+  }
+  .btn:hover { background: var(--indigo-dark); }
+  .btn:active { transform: translateY(1px); }
+  .btn:disabled { background: #c7c9f5; cursor: not-allowed; }
+  .btn.ghost { background: #fff; color: var(--text); border: 1px solid var(--border); }
+  .btn.ghost:hover { background: var(--bg); }
+  .btn.small { padding: 6px 12px; font-size: 12px; }
+  .btn.green { background: var(--green); }
+  .btn.green:hover { background: #059669; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; border-bottom: 1px solid var(--border); }
+  .tab {
+    padding: 9px 14px; font-size: 12.5px; font-weight: 600; color: var(--text-soft);
+    cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px;
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--indigo); border-bottom-color: var(--indigo); }
+  .tab-body { display: none; }
+  .tab-body.active { display: block; }
+
+  .notice {
+    font-size: 12px; color: #92620a; background: var(--amber-soft);
+    border: 1px solid #fde9c8; padding: 8px 12px; border-radius: 8px; margin-bottom: 14px;
+  }
+  .notice.indigo { color: var(--indigo-dark); background: var(--indigo-soft); border-color: #dadcff; }
+
+  /* table */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  thead th {
+    text-align: left; padding: 11px 14px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint);
+    background: #fafbfc; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none;
+  }
+  thead th:hover { color: var(--text-soft); }
+  thead th .arrow { font-size: 9px; opacity: 0.5; }
+  tbody tr { border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.12s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--indigo-soft); }
+  tbody tr.selected { background: var(--indigo-soft); box-shadow: inset 3px 0 0 var(--indigo); }
+  tbody td { padding: 11px 14px; vertical-align: top; }
+  .cell-name { font-weight: 620; color: var(--text); }
+  .cell-loc { font-size: 11px; color: var(--text-faint); margin-top: 2px; }
+  .truncate { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-soft); }
+  .pills { display: flex; flex-wrap: wrap; gap: 4px; }
+  .pill { font-size: 10.5px; padding: 2px 7px; border-radius: 20px; background: var(--bg); border: 1px solid var(--border); color: var(--text-soft); white-space: nowrap; }
+  .mutual { font-weight: 620; color: var(--indigo-dark); }
+  .prev-co { color: var(--text-soft); font-size: 12px; }
+
+  /* research grid */
+  .snapshot { font-size: 13.5px; color: var(--text); margin-bottom: 18px; line-height: 1.6; }
+  .research-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .research-col h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; margin: 0 0 10px; }
+  .research-col.why h4 { color: #047857; }
+  .research-col.pain h4 { color: #b45309; }
+  .research-col ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  .research-col li { font-size: 12.5px; padding: 8px 12px; border-radius: 8px; line-height: 1.45; }
+  .research-col.why li { background: var(--green-soft); border-left: 3px solid var(--green); }
+  .research-col.pain li { background: var(--amber-soft); border-left: 3px solid var(--amber); }
+  .info-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .info-box { background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 13px 15px; }
+  .info-box h5 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint); margin: 0 0 6px; }
+  .info-box p { margin: 0; font-size: 12.5px; color: var(--text); line-height: 1.5; }
+
+  /* sequence */
+  .seq-block { border-left: 3px solid var(--indigo); background: var(--bg); border-radius: 0 9px 9px 0; padding: 14px 16px; margin-bottom: 14px; }
+  .seq-block.d4 { border-left-color: var(--green); }
+  .seq-block.d10 { border-left-color: var(--amber); }
+  .seq-block.d18 { border-left-color: var(--accent); }
+  .seq-block.d25 { border-left-color: var(--gray); }
+  .seq-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .seq-meta { display: flex; align-items: center; gap: 10px; }
+  .seq-day { font-size: 12px; font-weight: 700; color: var(--text); }
+  .seq-type { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.03em; }
+  .seq-msg { font-size: 13px; color: var(--text); line-height: 1.55; white-space: pre-wrap; }
+  .char-count { font-size: 11px; color: var(--text-faint); margin-top: 7px; }
+  .char-count.over { color: var(--red); font-weight: 600; }
+
+  /* scoring */
+  .score-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-bottom: 18px; }
+  .score-box { text-align: center; padding: 6px 0; }
+  .score-num { font-size: 40px; font-weight: 720; letter-spacing: -0.03em; line-height: 1; }
+  .score-num.fit { color: var(--indigo); }
+  .score-num.intent { color: var(--amber); }
+  .score-num.prio { color: var(--green); }
+  .score-label { font-size: 11.5px; color: var(--text-soft); margin: 8px 0 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .bar { height: 7px; background: var(--bg); border-radius: 10px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; border-radius: 10px; width: 0; transition: width 1s cubic-bezier(.2,.8,.2,1); }
+  .bar.fit > span { background: var(--indigo); }
+  .bar.intent > span { background: var(--amber); }
+  .bar.prio > span { background: var(--green); }
+  .reco-banner { background: var(--green-soft); border: 1px solid #b7e4cd; color: #047857; padding: 12px 16px; border-radius: 9px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 9px; }
+
+  /* handoff */
+  .handoff-result { margin-top: 12px; font-size: 12.5px; padding: 10px 13px; border-radius: 8px; display: none; }
+  .handoff-result.ok { display: block; background: var(--green-soft); color: #047857; border: 1px solid #b7e4cd; }
+  .handoff-result.fail { display: block; background: var(--red-soft); color: #b91c1c; border: 1px solid #f5cfcf; }
+  .handoff-hint { margin-top: 14px; font-size: 12px; color: var(--text-soft); padding-top: 12px; border-top: 1px dashed var(--border); }
+
+  .error-banner {
+    background: var(--red-soft); border: 1px solid #f5cfcf; color: #b91c1c;
+    padding: 13px 16px; border-radius: 10px; margin-bottom: 20px; font-size: 13px; font-weight: 500;
+  }
+  .inline-err { background: var(--red-soft); border: 1px solid #f5cfcf; color: #b91c1c; padding: 10px 13px; border-radius: 8px; font-size: 12.5px; }
+  .hidden { display: none !important; }
+  .copy-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--sidebar); color: #fff; padding: 10px 18px; border-radius: 8px; font-size: 12.5px; opacity: 0; pointer-events: none; transition: opacity 0.2s; z-index: 100; }
+  .copy-toast.show { opacity: 1; }
+  .fade-in { animation: fade 0.35s ease; }
+  @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">M</div>
+      <div class="brand-name">Meshy Lead Intel</div>
+    </div>
+    <div class="brand-sub">Intelligence Engine</div>
+    <nav class="stage-nav" id="stageNav">
+      <!-- stage items injected -->
+    </nav>
+    <div class="sidebar-foot">Powered by Claude · Apollo · Slack</div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <div class="page-head">
+      <h1>Lead Intelligence Engine</h1>
+      <p>A 7-stage AI pipeline: discover prospects, research the account, and generate personalized LinkedIn outreach.</p>
+    </div>
+
+    <div id="envError"></div>
+
+    <!-- STAGE 1 -->
+    <section class="card" id="stage1">
+      <div class="card-head">
+        <div class="titles">
+          <span class="stage-badge">Stage 1</span>
+          <h2>Target Account</h2>
+        </div>
+        <span id="s1status"></span>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="companyName">Company Name</label>
+          <input type="text" id="companyName" placeholder="e.g. SEGA" />
+        </div>
+        <div class="field">
+          <label for="website">Website</label>
+          <input type="text" id="website" placeholder="e.g. sega.com" />
+        </div>
+      </div>
+      <div id="apikeyField" style="display:none; margin-top:14px;">
+        <div class="field">
+          <label for="anthropicKey">Google Gemini API Key <span style="font-weight:400;color:var(--text-faint)">(free — required outside Cowork)</span></label>
+          <input type="password" id="anthropicKey" placeholder="AIzaSy..." autocomplete="off" />
+          <p style="font-size:11.5px;color:var(--text-soft);margin:5px 0 0">Free tier, no credit card needed. Get one at <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--indigo)">aistudio.google.com/apikey</a> — takes 30 seconds.</p>
+        </div>
+      </div>
+      <div style="margin-top:16px">
+        <button class="btn" id="runBtn" onclick="runPipeline()">▶ Run Intelligence Pipeline</button>
+      </div>
+    </section>
+
+    <!-- Stages 2-7 injected here -->
+    <div id="stages"></div>
+  </main>
+</div>
+
+<div class="copy-toast" id="toast">Copied to clipboard</div>
+
+<script>
+/* =================================================================
+   Meshy Lead Intelligence Engine
+   ================================================================= */
+
+const STAGES = [
+  { n: 1, title: "Target Account",     sub: "Inputs" },
+  { n: 2, title: "Prospect Discovery", sub: "Find people" },
+  { n: 3, title: "AI Research Agent",  sub: "Account intel" },
+  { n: 4, title: "Personalized Seq.",  sub: "Outreach 4-touch" },
+  { n: 5, title: "Message Variants",   sub: "Day 0–25" },
+  { n: 6, title: "Intent Scoring",     sub: "Fit · Intent" },
+  { n: 7, title: "SDR Handoff",        sub: "Alert" },
+];
+
+// ----- App state (no localStorage) -----
+const state = {
+  company: "",
+  website: "",
+  domain: "",
+  method: "ai",            // ai | apollo | csv
+  prospects: [],
+  selectedIndex: 0,
+  research: null,
+  sequence: null,
+  scores: null,
+  sortKey: null,
+  sortDir: 1,
+  apolloNotice: false,
+};
+
+const TITLE_FIT = {
+  "Technical Art Director": 95,
+  "Principal Technical Artist": 92,
+  "Head of Art": 90,
+  "Lead 3D Artist": 88,
+  "Art Director": 85,
+  "VFX Supervisor": 82,
+  "Creative Operations Manager": 74,
+};
+const TARGET_TITLES = Object.keys(TITLE_FIT);
+
+const APOLLO_TOOL = "mcp__2c8cee90-e63c-406e-a190-f09bc9117ff3__apollo_mixed_people_api_search";
+
+/* ---------------- Sidebar nav ---------------- */
+function buildNav() {
+  const nav = document.getElementById("stageNav");
+  nav.innerHTML = STAGES.map(s => `
+    <div class="stage-item" id="nav-${s.n}">
+      <div class="dot">${s.n}</div>
+      <div class="label">${s.title}<small>${s.sub}</small></div>
+    </div>`).join("");
+}
+function setNav(n, status) {
+  const el = document.getElementById("nav-" + n);
+  if (!el) return;
+  el.classList.remove("active", "done");
+  const dot = el.querySelector(".dot");
+  if (status === "active") { el.classList.add("active"); dot.textContent = n; }
+  else if (status === "done") { el.classList.add("done"); dot.textContent = "✓"; }
+  else { dot.textContent = n; }
+}
+
+/* ---------------- Robust JSON parsing ---------------- */
+function parseJSON(text) {
+  if (text == null) throw new Error("Empty AI response");
+  // Already a parsed object/array — return directly
+  if (typeof text === "object") return text;
+  const raw = String(text).trim();
+  // 1. direct
+  try { return JSON.parse(raw); } catch (e) {}
+  // 2. fenced ```json ... ``` or ``` ... ```
+  const fence = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence && fence[1]) {
+    try { return JSON.parse(fence[1].trim()); } catch (e) {}
+  }
+  // 3. first {...} or [...] substring (balanced-ish, greedy)
+  const arr = raw.match(/\[[\s\S]*\]/);
+  if (arr) { try { return JSON.parse(arr[0]); } catch (e) {} }
+  const obj = raw.match(/\{[\s\S]*\}/);
+  if (obj) { try { return JSON.parse(obj[0]); } catch (e) {} }
+  // 4. give up
+  throw new Error("Could not parse JSON from AI response: " + raw.slice(0, 160));
+}
+
+/* ---------------- AI wrapper ---------------- */
+async function askAI(prompt, data) {
+  // Path 1: Cowork runtime (preferred)
+  if (window.cowork && typeof window.cowork.askClaude === "function") {
+    const res = await window.cowork.askClaude(prompt, data || []);
+    if (typeof res === "string") return res;
+    if (res && typeof res === "object") {
+      // Unwrap common envelope shapes
+      return res.text ?? res.content ?? res.response ?? res.result ?? JSON.stringify(res);
+    }
+    return String(res ?? "");
+  }
+
+  // Path 2: Google Gemini free tier (standalone / outside Cowork)
+  const apiKey = document.getElementById("anthropicKey")?.value?.trim();
+  if (!apiKey) throw new Error("Enter your Google Gemini API key in Stage 1 to enable AI generation.");
+
+  const context = (data || [])
+    .map(d => typeof d === "string" ? d : JSON.stringify(d))
+    .join("\n");
+  const fullPrompt = context ? prompt + "\n\nContext:\n" + context : prompt;
+
+  const resp = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        generationConfig: { maxOutputTokens: 2000, temperature: 0.7 },
+      }),
+    }
+  );
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error?.message || `Gemini API error ${resp.status}`);
+  }
+  const result = await resp.json();
+  return result.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+}
+
+/* ---------------- Small DOM helpers ---------------- */
+function el(html) { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; }
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+function rint(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+function toast(msg) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove("show"), 1600);
+}
+function copyText(txt, btn) {
+  const done = () => { toast("Copied to clipboard"); if (btn) { const o = btn.textContent; btn.textContent = "✓ Copied"; setTimeout(() => btn.textContent = o, 1400); } };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(txt).then(done).catch(() => fallbackCopy(txt, done));
+  } else fallbackCopy(txt, done);
+}
+function fallbackCopy(txt, done) {
+  const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta);
+  ta.select(); try { document.execCommand("copy"); } catch (e) {} document.body.removeChild(ta); done();
+}
+
+/* ---------------- Card scaffolding ---------------- */
+function stageCard(id, n, title, subtitle) {
+  let card = document.getElementById(id);
+  if (card) {
+    // update subtitle if already exists (prospect switch)
+    const sub = card.querySelector(".subtitle");
+    if (sub && subtitle) sub.textContent = subtitle;
+    return card;
+  }
+  card = el(`
+    <section class="card fade-in" id="${id}">
+      <div class="card-head">
+        <div class="titles">
+          <span class="stage-badge">Stage ${n}</span>
+          <h2>${esc(title)}</h2>
+        </div>
+        <span class="cardStatus"></span>
+      </div>
+      ${subtitle ? `<p class="subtitle" style="margin-top:-8px;margin-bottom:14px">${esc(subtitle)}</p>` : ""}
+      <div class="cardBody"></div>
+    </section>`);
+  document.getElementById("stages").appendChild(card);
+  return card;
+}
+function cardStatus(card, html) { card.querySelector(".cardStatus").innerHTML = html; }
+function cardBody(card) { return card.querySelector(".cardBody"); }
+function showLoading(card, label) { cardBody(card).innerHTML = `<div class="loading"><div class="spinner"></div>${esc(label)}</div>`; }
+function showInlineError(card, msg) {
+  cardStatus(card, `<span class="status err">✕ Error</span>`);
+  cardBody(card).innerHTML = `<div class="inline-err"><strong>Something went wrong.</strong><br>${esc(msg)}</div>`;
+}
+
+/* =================================================================
+   PIPELINE
+   ================================================================= */
+async function runPipeline() {
+  const company = document.getElementById("companyName").value.trim();
+  const website = document.getElementById("website").value.trim();
+
+  if (!company) { document.getElementById("companyName").focus(); flashInvalid("companyName"); return; }
+  if (!website) { document.getElementById("website").focus(); flashInvalid("website"); return; }
+
+  state.company = company;
+  state.website = website;
+  state.domain = website.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").trim();
+  state.selectedIndex = 0;
+  state.research = null; state.sequence = null; state.scores = null;
+
+  document.getElementById("s1status").innerHTML = `<span class="status done">✓ ${esc(company)}</span>`;
+  setNav(1, "done");
+
+  const runBtn = document.getElementById("runBtn");
+  runBtn.disabled = true; runBtn.textContent = "Running…";
+
+  // reset downstream
+  document.getElementById("stages").innerHTML = "";
+
+  try {
+    await stage2_discovery();          // builds prospect table
+    await regenerateForProspect();     // stages 3-7 for selected prospect
+  } catch (e) {
+    console.error(e);
+  } finally {
+    runBtn.disabled = false; runBtn.textContent = "▶ Run Intelligence Pipeline";
+  }
+}
+
+function flashInvalid(id) {
+  const inp = document.getElementById(id);
+  inp.style.borderColor = "var(--red)";
+  inp.style.boxShadow = "0 0 0 3px var(--red-soft)";
+  setTimeout(() => { inp.style.borderColor = ""; inp.style.boxShadow = ""; }, 1500);
+}
+
+/* regenerate stages 3-7 (after select or initial run) */
+async function regenerateForProspect() {
+  await stage3_research();
+  await stage45_sequence();
+  stage6_scoring();
+  stage7_handoff();
+}
+
+/* =================================================================
+   STAGE 2 — Prospect Discovery
+   ================================================================= */
+async function stage2_discovery() {
+  setNav(2, "active");
+  const card = stageCard("stage2", 2, "Prospect Discovery", "Find decision-makers at " + state.company + ". Switch methods, or click a row to retarget the pipeline.");
+  cardBody(card).innerHTML = `
+    <div class="tabs">
+      <div class="tab ${state.method==='ai'?'active':''}" data-m="ai" onclick="switchMethod('ai')">🤖 AI Synthesis</div>
+      <div class="tab ${state.method==='apollo'?'active':''}" data-m="apollo" onclick="switchMethod('apollo')">Apollo (live)</div>
+      <div class="tab ${state.method==='csv'?'active':''}" data-m="csv" onclick="switchMethod('csv')">📂 Manual CSV</div>
+    </div>
+    <div id="methodNotice"></div>
+    <div id="tab-ai" class="tab-body ${state.method==='ai'?'active':''}"></div>
+    <div id="tab-apollo" class="tab-body ${state.method==='apollo'?'active':''}"></div>
+    <div id="tab-csv" class="tab-body ${state.method==='csv'?'active':''}">
+      <p style="font-size:12.5px;color:var(--text-soft);margin:0 0 10px">Upload a CSV file — columns: <code>Name, Title, Previous Companies, LinkedIn URL, Tenure, Tech Stack</code>. Use a pipe (<code>|</code>) to separate multiple values in a cell.</p>
+      <label id="csvDropZone" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;border:2px dashed var(--border);border-radius:10px;padding:28px 20px;cursor:pointer;color:var(--text-soft);font-size:13px;transition:border-color .2s,background .2s" ondragover="event.preventDefault();this.style.borderColor='var(--accent)'" ondragleave="this.style.borderColor='var(--border)'" ondrop="handleCSVDrop(event)">
+        <span style="font-size:28px">📄</span>
+        <span id="csvFileName">Drop CSV here or <u>click to browse</u></span>
+        <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none" onchange="loadCSVFile(this.files[0])">
+      </label>
+    </div>
+    <div id="prospectTableWrap" style="margin-top:18px"></div>
+  `;
+  await runMethod(state.method, card);
+}
+
+function switchMethod(m) {
+  state.method = m;
+  document.querySelectorAll("#stage2 .tab").forEach(t => t.classList.toggle("active", t.dataset.m === m));
+  ["ai", "apollo", "csv"].forEach(k => {
+    const b = document.getElementById("tab-" + k);
+    if (b) b.classList.toggle("active", k === m);
+  });
+  document.getElementById("methodNotice").innerHTML = "";
+  const card = document.getElementById("stage2");
+  if (m === "ai" || m === "apollo") runMethod(m, card);
+}
+
+async function runMethod(m, card) {
+  if (m === "csv") {
+    // CSV is user-driven; only re-render table if we already have data
+    if (state.prospects.length) renderProspectTable();
+    cardStatus(card, "");
+    return;
+  }
+  cardStatus(card, `<span class="loading" style="padding:0"><span class="spinner"></span></span>`);
+  const body = document.getElementById("tab-" + m);
+  body.innerHTML = `<div class="loading"><div class="spinner"></div>${m === "apollo" ? "Querying Apollo for matching people…" : "Synthesizing realistic prospect profiles with AI…"}</div>`;
+
+  try {
+    let list;
+    if (m === "apollo") list = await fetchApollo();
+    else list = await fetchAISynthesis();
+
+    state.prospects = list;
+    state.selectedIndex = 0;
+    body.innerHTML = "";
+    if (state.apolloNotice && m === "apollo") {
+      document.getElementById("methodNotice").innerHTML = `<div class="notice">Apollo requires paid plan — used AI synthesis.</div>`;
+    }
+    renderProspectTable();
+    cardStatus(card, `<span class="status done">✓ ${list.length} prospects</span>`);
+    setNav(2, "done");
+  } catch (e) {
+    console.error(e);
+    body.innerHTML = "";
+    showInlineError(card, e.message || String(e));
+    cardStatus(card, `<span class="status err">✕ Error</span>`);
+  }
+}
+
+async function fetchAISynthesis() {
+  const prompt = `OUTPUT ONLY A JSON ARRAY. No preamble, no explanation, no markdown. Start with [ and end with ].\n\n` +
+    `Generate 5 realistic prospect profiles for "${state.company}" (${state.domain}). ` +
+    `Each title must be one of: ${TARGET_TITLES.join(", ")}. Vary titles across all 5.\n\n` +
+    `Required JSON array format:\n` +
+    `[{"name":"Full Name","title":"one of allowed titles","tenure":"X yrs","previousCompanies":["Co1","Co2"],"techStack":["Maya","Houdini"],"recentActivity":"one sentence about a recent post or project","mutualConnections":12,"linkedinUrl":"https://linkedin.com/in/slug","location":"City, Country"}]\n\n` +
+    `Use your training knowledge. Do not attempt to search the web. Output ONLY the JSON array.`;
+  const res = await askAI(prompt, [{ company: state.company, domain: state.domain }]);
+  let data = parseJSON(res);
+  if (!Array.isArray(data)) data = data.prospects || data.results || [];
+  return data.map(normalizeProspect).filter(Boolean).slice(0, 8);
+}
+
+async function fetchApollo() {
+  state.apolloNotice = false;
+  if (!window.cowork || typeof window.cowork.callMcpTool !== "function") {
+    state.apolloNotice = true;
+    return await fetchAISynthesis();
+  }
+  try {
+    const res = await window.cowork.callMcpTool(APOLLO_TOOL, {
+      person_titles: TARGET_TITLES,
+      q_organization_domains_list: [state.domain],
+      page: 1,
+      per_page: 5,
+    });
+    const people = extractApolloPeople(res);
+    if (!people.length) throw new Error("no results");
+    return people.map(mapApolloPerson).filter(Boolean).slice(0, 8);
+  } catch (e) {
+    // free plan / restriction → silent fallback
+    state.apolloNotice = true;
+    return await fetchAISynthesis();
+  }
+}
+
+function extractApolloPeople(res) {
+  if (!res) return [];
+  let obj = res;
+  if (typeof res === "string") { try { obj = JSON.parse(res); } catch (e) { return []; } }
+  if (obj.content && Array.isArray(obj.content)) {
+    // MCP content envelope
+    const txt = obj.content.map(c => c.text || "").join("");
+    try { obj = JSON.parse(txt); } catch (e) {}
+  }
+  return obj.people || obj.contacts || obj.results || [];
+}
+
+function mapApolloPerson(p) {
+  if (!p) return null;
+  const name = p.name || [p.first_name, p.last_name].filter(Boolean).join(" ") || "Unknown";
+  const title = p.title || "Art Director";
+  const matched = TARGET_TITLES.find(t => (title || "").toLowerCase().includes(t.toLowerCase())) || title;
+  const org = p.organization || {};
+  const loc = [p.city, p.country].filter(Boolean).join(", ") || p.present_raw_address || "—";
+  return normalizeProspect({
+    name,
+    title: matched,
+    tenure: p.tenure || "—",
+    previousCompanies: (p.employment_history || []).map(h => h.organization_name).filter(Boolean).slice(0, 3),
+    techStack: (org.technology_names || []).slice(0, 4),
+    recentActivity: p.headline || "Active on LinkedIn",
+    mutualConnections: rint(2, 30),
+    linkedinUrl: p.linkedin_url || "",
+    location: loc,
+  });
+}
+
+function normalizeProspect(p) {
+  if (!p || !p.name) return null;
+  return {
+    name: String(p.name),
+    title: String(p.title || "Art Director"),
+    tenure: String(p.tenure || "—"),
+    previousCompanies: Array.isArray(p.previousCompanies) ? p.previousCompanies : (p.previousCompanies ? String(p.previousCompanies).split("|").map(s=>s.trim()) : []),
+    techStack: Array.isArray(p.techStack) ? p.techStack : (p.techStack ? String(p.techStack).split("|").map(s=>s.trim()) : []),
+    recentActivity: String(p.recentActivity || "—"),
+    mutualConnections: Number(p.mutualConnections) || 0,
+    linkedinUrl: String(p.linkedinUrl || ""),
+    location: String(p.location || "—"),
+  };
+}
+
+function handleCSVDrop(e) {
+  e.preventDefault();
+  document.getElementById("csvDropZone").style.borderColor = "var(--border)";
+  const file = e.dataTransfer?.files?.[0];
+  if (file) loadCSVFile(file);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("csvDropZone")?.addEventListener("click", () => {
+    document.getElementById("csvFileInput")?.click();
+  });
+});
+
+function loadCSVFile(file) {
+  if (!file) return;
+  document.getElementById("csvFileName").textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => loadCSV(e.target.result);
+  reader.readAsText(file);
+}
+
+function loadCSV(raw) {
+  if (typeof raw !== "string") raw = "";
+  raw = raw.trim();
+  if (!raw) { toast("CSV file appears empty"); return; }
+  const rows = raw.split(/\r?\n/).map(r => r.trim()).filter(Boolean);
+  const list = [];
+  for (const row of rows) {
+    const cols = row.split(",").map(c => c.trim());
+    if (cols.length < 2) continue;
+    // skip header-looking row
+    if (/^name$/i.test(cols[0]) && /^title$/i.test(cols[1] || "")) continue;
+    list.push(normalizeProspect({
+      name: cols[0],
+      title: cols[1] || "Art Director",
+      previousCompanies: (cols[2] || "").split("|").map(s => s.trim()).filter(Boolean),
+      linkedinUrl: cols[3] || "",
+      tenure: cols[4] || "—",
+      techStack: (cols[5] || "").split("|").map(s => s.trim()).filter(Boolean),
+      recentActivity: "Imported from CSV",
+      mutualConnections: rint(2, 25),
+      location: "—",
+    }));
+  }
+  if (!list.length) { toast("No valid rows parsed"); return; }
+  state.prospects = list.filter(Boolean);
+  state.selectedIndex = 0;
+  renderProspectTable();
+  cardStatus(document.getElementById("stage2"), `<span class="status done">✓ ${state.prospects.length} prospects</span>`);
+  setNav(2, "done");
+  regenerateForProspect();
+}
+
+/* ---------------- Prospect table ---------------- */
+const COLS = [
+  { key: "name",    label: "Name" },
+  { key: "title",   label: "Title" },
+  { key: "tenure",  label: "Tenure" },
+  { key: "prev",    label: "Previous Companies" },
+  { key: "tech",    label: "Tech Stack" },
+  { key: "recent",  label: "Recent Activity" },
+  { key: "mutual",  label: "Mutual" },
+];
+
+function renderProspectTable() {
+  const wrap = document.getElementById("prospectTableWrap");
+  if (!wrap) return;
+  let list = state.prospects.slice();
+
+  if (state.sortKey) {
+    const k = state.sortKey, d = state.sortDir;
+    const val = (p) => {
+      switch (k) {
+        case "name": return p.name.toLowerCase();
+        case "title": return (TITLE_FIT[p.title] || 0);
+        case "tenure": return parseFloat(p.tenure) || 0;
+        case "prev": return (p.previousCompanies[0] || "").toLowerCase();
+        case "tech": return (p.techStack[0] || "").toLowerCase();
+        case "recent": return p.recentActivity.toLowerCase();
+        case "mutual": return p.mutualConnections;
+      }
+    };
+    list.sort((a, b) => { const x = val(a), y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * d; });
+  }
+
+  wrap.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>${COLS.map(c => `<th onclick="sortBy('${c.key}')">${c.label} <span class="arrow">${state.sortKey===c.key?(state.sortDir>0?'▲':'▼'):'↕'}</span></th>`).join("")}</tr></thead>
+        <tbody>
+          ${list.map(p => {
+            const realIdx = state.prospects.indexOf(p);
+            const sel = realIdx === state.selectedIndex ? "selected" : "";
+            return `<tr class="${sel}" onclick="selectProspect(${realIdx})">
+              <td><div class="cell-name">${esc(p.name)}</div><div class="cell-loc">${esc(p.location)}</div></td>
+              <td>${esc(p.title)}</td>
+              <td>${esc(p.tenure)}</td>
+              <td class="prev-co">${p.previousCompanies.length ? esc(p.previousCompanies.join(", ")) : "—"}</td>
+              <td><div class="pills">${p.techStack.map(t => `<span class="pill">${esc(t)}</span>`).join("") || "—"}</div></td>
+              <td class="truncate" title="${esc(p.recentActivity)}">${esc(p.recentActivity)}</td>
+              <td><span class="mutual">${p.mutualConnections}</span></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>
+    </div>
+    <p style="font-size:11.5px;color:var(--text-faint);margin:10px 2px 0">Click any row to select that prospect and regenerate Stages 3–7.</p>
+  `;
+}
+
+function sortBy(key) {
+  if (state.sortKey === key) state.sortDir *= -1;
+  else { state.sortKey = key; state.sortDir = 1; }
+  renderProspectTable();
+}
+
+async function selectProspect(idx) {
+  if (idx === state.selectedIndex && state.research) { /* allow re-run */ }
+  state.selectedIndex = idx;
+  renderProspectTable();
+  await regenerateForProspect();
+  document.getElementById("stage3")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function currentProspect() { return state.prospects[state.selectedIndex]; }
+
+/* =================================================================
+   STAGE 3 — AI Research Agent
+   ================================================================= */
+async function stage3_research() {
+  const p = currentProspect();
+  if (!p) return;
+  setNav(3, "active");
+  const card = stageCard("stage3", 3, "AI Research Agent", "Account intelligence for " + state.company + " — tailored to " + p.name + ".");
+  showLoading(card, "Researching " + state.company + " — pain points, signals, news…");
+  cardStatus(card, `<span class="loading" style="padding:0"><span class="spinner"></span></span>`);
+
+  try {
+    const prompt = `OUTPUT ONLY VALID JSON. No preamble, no explanation, no markdown fences. Start with { and end with }.\n\n` +
+      `Generate B2B account intelligence for "${state.company}" (${state.domain}) as a sales target for Meshy (AI 3D-asset generation platform).\n` +
+      `Specific prospect: ${p.name}, ${p.title}, ${p.tenure} at ${state.company}.\n` +
+      `Their tech stack: ${(p.techStack||[]).join(", ")||"unknown"}.\n` +
+      `Previous companies: ${(p.previousCompanies||[]).join(", ")||"unknown"}.\n` +
+      `Recent activity: ${p.recentActivity}.\n\n` +
+      `All 5 fields must be tailored to a ${p.title}'s specific responsibilities and pain points — not generic company info.\n\n` +
+      `Required JSON structure:\n` +
+      `{"companySnapshot":"2 sentences about ${state.company} and its 3D/content production needs","whyThisAccount":["reason specifically relevant to a ${p.title}'s goals","reason 2","reason 3"],"painPoints":["pain point a ${p.title} personally experiences","pain point 2","pain point 3"],"recentNews":"one specific recent ${state.company} initiative or launch relevant to 3D production","hiringSignals":"what ${state.company}'s art/3D hiring patterns signal about their ${p.title}'s team constraints"}\n\n` +
+      `Use your training knowledge. Do not attempt to search the web. Output ONLY the JSON object.`;
+    const res = await askAI(prompt, [{ company: state.company, domain: state.domain, prospect: p }]);
+    const r = parseJSON(res);
+    state.research = r;
+    renderResearch(card, r);
+    cardStatus(card, `<span class="status done">✓ Complete</span>`);
+    setNav(3, "done");
+  } catch (e) {
+    console.error(e);
+    showInlineError(card, e.message || String(e));
+  }
+}
+
+function renderResearch(card, r) {
+  const why = Array.isArray(r.whyThisAccount) ? r.whyThisAccount : [];
+  const pain = Array.isArray(r.painPoints) ? r.painPoints : [];
+  cardBody(card).innerHTML = `
+    <p class="snapshot">${esc(r.companySnapshot || "")}</p>
+    <div class="research-grid">
+      <div class="research-col why">
+        <h4>✅ Why This Account</h4>
+        <ul>${why.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+      </div>
+      <div class="research-col pain">
+        <h4>⚠ Pain Points</h4>
+        <ul>${pain.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+      </div>
+    </div>
+    <div class="info-row">
+      <div class="info-box"><h5>📰 Recent News</h5><p>${esc(r.recentNews || "—")}</p></div>
+      <div class="info-box"><h5>📈 Hiring Signals</h5><p>${esc(r.hiringSignals || "—")}</p></div>
+    </div>
+  `;
+}
+
+/* =================================================================
+   STAGE 4+5 — Personalized Sequence
+   ================================================================= */
+async function stage45_sequence() {
+  const p = currentProspect();
+  if (!p) return;
+  setNav(4, "active"); setNav(5, "active");
+  const card = stageCard("stage45", "4+5", "Personalized LinkedIn Sequence", "A 4-touch sequence for " + p.name + " (" + p.title + ").");
+  showLoading(card, "Writing personalized 4-touch sequence…");
+  cardStatus(card, `<span class="loading" style="padding:0"><span class="spinner"></span></span>`);
+
+  try {
+    const ctx = {
+      prospect: p,
+      company: state.company,
+      research: state.research,
+    };
+    // pick a Meshy asset example relevant to prospect's title
+    const MESHY_ASSETS = {
+      "Technical Art Director": { label: "Pipeline Integration Demo", url: "https://www.meshy.ai/blog/how-to-use-meshy-in-your-3d-pipeline", desc: "how studios plug Meshy into their existing Maya/Houdini pipeline to cut asset iteration time by 60%" },
+      "Art Director": { label: "Style-Consistent Batch Generation", url: "https://www.meshy.ai/blog/ai-3d-model-generator", desc: "how art directors use Meshy to generate style-consistent prop variants in minutes instead of days" },
+      "Lead 3D Artist": { label: "Character & Prop Speed Run", url: "https://www.meshy.ai/blog/text-to-3d", desc: "a Lead 3D Artist generating 50 character variants from text prompts in under an hour" },
+      "VFX Supervisor": { label: "Environment Asset Generation", url: "https://www.meshy.ai/blog/ai-3d-model-generator", desc: "how VFX teams use Meshy to generate hero environment assets and background set pieces on demand" },
+      "Head of Art": { label: "Team Scaling Case Study", url: "https://www.meshy.ai/blog/ai-3d-model-generator", desc: "how one studio doubled creative output without headcount by integrating Meshy into their art pipeline" },
+      "Principal Technical Artist": { label: "Tool Integration Guide", url: "https://www.meshy.ai/blog/how-to-use-meshy-in-your-3d-pipeline", desc: "how Technical Artists use Meshy's API to automate LOD generation and texture baking inside existing tools" },
+    };
+    const asset = MESHY_ASSETS[p.title] || { label: "Meshy 3D Generation Demo", url: "https://www.meshy.ai", desc: "how teams use Meshy to generate production-ready 3D assets from text and images" };
+
+    const prompt = `OUTPUT ONLY VALID JSON. No preamble, no explanation, no markdown. Start with { and end with }.\n\n` +
+      `Write a 5-touch LinkedIn outreach sequence for Meshy (AI 3D-asset generation platform).\n` +
+      `Prospect: ${p.name}, ${p.title} at ${state.company}.\n` +
+      `Tenure: ${p.tenure}. Previous companies: ${(p.previousCompanies||[]).join(", ")||"n/a"}.\n` +
+      `Tech stack: ${(p.techStack||[]).join(", ")||"n/a"}. Recent activity: ${p.recentActivity}.\n` +
+      `Company context: ${state.research ? state.research.companySnapshot : state.company}.\n` +
+      `Pain points: ${state.research ? (state.research.painPoints||[]).join("; ") : ""}.\n` +
+      `Relevant business trigger: ${state.research ? state.research.recentNews : "rapid content production demands"}.\n\n` +
+      `Required JSON structure:\n` +
+      `{"connectionRequest":"under 250 chars, reference their specific background (${p.tenure} at ${state.company}, ${(p.previousCompanies||[]).slice(0,1).join("")||"prior studio"}), no sales pitch, natural tone","day4":"2-3 sentences tying ${state.research ? state.research.recentNews : state.company+"'s production demands"} to a specific Meshy use case for a ${p.title}","day10":"2-3 sentences: share this specific asset (${asset.desc}) and include this link ${asset.url} naturally — tie it to a concrete pain point or business trigger relevant to ${p.title} at ${state.company}","day18":"1 open-ended question a ${p.title} would genuinely find worth answering — about their current 3D workflow, team structure, or a challenge specific to ${state.company}'s scale. No pitch. Just curiosity.","day25":"1-2 sentences: warm breakup, acknowledge they are busy, leave door open, reference something specific about ${state.company}"}\n\n` +
+      `Rules: connectionRequest under 250 chars. Sound human, not salesy. day18 must be a single genuine question only. Output ONLY the JSON object.`;
+    const res = await askAI(prompt, [ctx]);
+    const seq = parseJSON(res);
+    seq._asset = asset;
+    state.sequence = seq;
+    renderSequence(card, seq);
+    cardStatus(card, `<span class="status done">✓ 5 messages</span>`);
+    setNav(4, "done"); setNav(5, "done");
+  } catch (e) {
+    console.error(e);
+    showInlineError(card, e.message || String(e));
+  }
+}
+
+function renderSequence(card, seq) {
+  const assetHtml = seq._asset
+    ? `<a href="${seq._asset.url}" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--accent);text-decoration:none;margin-top:6px;padding:4px 8px;border:1px solid var(--accent);border-radius:6px;">🔗 ${seq._asset.label}</a>`
+    : "";
+  const blocks = [
+    { cls: "", day: "Day 0", type: "Connection Request", text: seq.connectionRequest || "", count: true },
+    { cls: "d4", day: "Day 4", type: "Value Message", text: seq.day4 || "" },
+    { cls: "d10", day: "Day 10", type: "Asset Drop + Business Trigger", text: seq.day10 || "", extra: assetHtml },
+    { cls: "d18", day: "Day 18", type: "Persona Question", text: seq.day18 || "" },
+    { cls: "d25", day: "Day 25", type: "Breakup", text: seq.day25 || "" },
+  ];
+  cardBody(card).innerHTML = blocks.map((b, i) => {
+    const len = b.text.length;
+    const over = b.count && len > 250;
+    return `
+    <div class="seq-block ${b.cls}">
+      <div class="seq-top">
+        <div class="seq-meta"><span class="seq-day">${b.day}</span><span class="seq-type">${esc(b.type)}</span></div>
+        <button class="btn ghost small" onclick='copySeq(${i}, this)'>Copy</button>
+      </div>
+      <div class="seq-msg" id="seqmsg-${i}">${esc(b.text)}</div>
+      ${b.extra || ""}
+      ${b.count ? `<div class="char-count ${over?'over':''}">${len} / 250 characters${over?' — over limit!':''}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+function copySeq(i, btn) {
+  const txt = document.getElementById("seqmsg-" + i).textContent;
+  copyText(txt, btn);
+}
+
+/* =================================================================
+   STAGE 6 — Intent Scoring
+   ================================================================= */
+function stage6_scoring() {
+  const p = currentProspect();
+  if (!p) return;
+  setNav(6, "active");
+  const card = stageCard("stage6", 6, "Intent Scoring", "Algorithmic prioritization for " + p.name + ".");
+
+  const base = TITLE_FIT[p.title] || 75;
+  let fit = base + rint(-5, 5);
+  fit = Math.min(99, Math.max(50, fit));
+  const intent = rint(70, 92);
+  const priority = Math.round(fit * 0.5 + intent * 0.5);
+
+  state.scores = { fit, intent, priority };
+
+  cardBody(card).innerHTML = `
+    <div class="score-grid">
+      ${scoreBox("fit", "Fit Score", fit)}
+      ${scoreBox("intent", "Intent Score", intent)}
+      ${scoreBox("prio", "Priority Score", priority)}
+    </div>
+    ${priority >= 75 ? `<div class="reco-banner">🎯 Priority score ${priority} exceeds threshold — recommended for SDR handoff.</div>` : `<div class="notice indigo">Priority score ${priority} is below the 75 handoff threshold — keep nurturing.</div>`}
+  `;
+  cardStatus(card, `<span class="status done">✓ Priority ${priority}</span>`);
+  setNav(6, "done");
+
+  // animate bars
+  requestAnimationFrame(() => {
+    card.querySelector(".bar.fit > span").style.width = fit + "%";
+    card.querySelector(".bar.intent > span").style.width = intent + "%";
+    card.querySelector(".bar.prio > span").style.width = priority + "%";
+  });
+}
+
+function scoreBox(cls, label, val) {
+  return `<div class="score-box">
+    <div class="score-num ${cls}">${val}</div>
+    <div class="score-label">${label}</div>
+    <div class="bar ${cls}"><span></span></div>
+  </div>`;
+}
+
+/* =================================================================
+   STAGE 7 — SDR Handoff
+   ================================================================= */
+function stage7_handoff() {
+  const p = currentProspect();
+  const s = state.scores;
+  if (!p || !s) return;
+
+  const existing = document.getElementById("stage7");
+  if (s.priority < 75) {
+    if (existing) existing.remove();
+    setNav(7, "pending");
+    return;
+  }
+
+  setNav(7, "active");
+  const card = stageCard("stage7", 7, "SDR Handoff", "This prospect qualifies — alert your SDR team.");
+  cardBody(card).innerHTML = `
+    <div class="field" style="margin-bottom:12px">
+      <label for="webhook">Slack Webhook URL (optional)</label>
+      <input type="url" id="webhook" placeholder="https://hooks.slack.com/services/..." />
+    </div>
+    <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
+    <div class="handoff-result" id="handoffResult"></div>
+    <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
+  `;
+  cardStatus(card, `<span class="status done">✓ Ready</span>`);
+  setNav(7, "done");
+}
+
+async function alertSDR() {
+  const p = currentProspect();
+  const s = state.scores;
+  const url = document.getElementById("webhook").value.trim();
+  const result = document.getElementById("handoffResult");
+  const btn = document.getElementById("alertBtn");
+
+  const payload = {
+    text: `🎯 *New SDR Handoff — ${state.company}*\n` +
+      `*${p.name}* — ${p.title}\n` +
+      `📍 ${p.location}\n` +
+      `Scores → Fit ${s.fit} · Intent ${s.intent} · *Priority ${s.priority}*\n` +
+      `🔗 ${p.linkedinUrl || "(no LinkedIn URL)"}`,
+  };
+
+  if (!url) {
+    result.className = "handoff-result fail";
+    result.textContent = "Enter a Slack webhook URL first — or copy the messages above into LinkedIn manually.";
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = "Sending…";
+  try {
+    // Use no-cors + form-encoded payload — avoids CORS preflight that Slack webhooks don't allow
+    await fetch(url, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "payload=" + encodeURIComponent(JSON.stringify(payload)),
+    });
+    // no-cors returns opaque response (unreadable), but request was delivered if no network error
+    result.className = "handoff-result ok";
+    result.textContent = `✅ Alert sent to Slack for ${p.name} (Priority ${s.priority}). Check your Slack channel.`;
+  } catch (e) {
+    result.className = "handoff-result fail";
+    result.textContent = `Could not reach the webhook (${e.message}). Check the URL is correct and active.`;
+  } finally {
+    btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+  }
+}
+
+/* =================================================================
+   INIT
+   ================================================================= */
+function init() {
+  buildNav();
+  setNav(1, "active");
+  const hasCowork = window.cowork && typeof window.cowork.askClaude === "function";
+  if (!hasCowork) {
+    document.getElementById("apikeyField").style.display = "block";
+    document.getElementById("envError").innerHTML =
+      `<div class="notice indigo" style="margin-bottom:16px">Running outside Cowork — enter a free Google Gemini API key below to enable AI generation. Get one in 30 seconds at <a href="https://aistudio.google.com/apikey" target="_blank" style="color:var(--indigo-dark)">aistudio.google.com/apikey</a>.</div>`;
+  }
+}
+init();
+</script>
+</body>
+</html>
