@@ -334,10 +334,9 @@ const STAGES = [
   { n: 1, title: "Target Account",     sub: "Inputs" },
   { n: 2, title: "Prospect Discovery", sub: "Find people" },
   { n: 3, title: "AI Research Agent",  sub: "Account intel" },
-  { n: 4, title: "Personalized Seq.",  sub: "Outreach 4-touch" },
-  { n: 5, title: "Message Variants",   sub: "Day 0–25" },
-  { n: 6, title: "Intent Scoring",     sub: "Fit · Intent" },
-  { n: 7, title: "Sales Handoff",        sub: "Alert" },
+  { n: 4, title: "Personalized Seq.",  sub: "Day 0–25" },
+  { n: 5, title: "Intent Scoring",     sub: "Fit · Intent" },
+  { n: 6, title: "Sales Handoff",      sub: "Alert" },
 ];
 
 // ----- App state (no localStorage) -----
@@ -875,7 +874,7 @@ function renderProspectTable() {
         </tbody>
       </table>
     </div>
-    <p style="font-size:11.5px;color:var(--text-faint);margin:10px 2px 0">Click any row to select that prospect and regenerate Stages 3–7.</p>
+    <p style="font-size:11.5px;color:var(--text-faint);margin:10px 2px 0">Click any row to select that prospect and regenerate Stages 3–6.</p>
   `;
 }
 
@@ -958,7 +957,7 @@ async function stage45_sequence() {
   const p = currentProspect();
   if (!p) return;
   setNav(4, "active"); setNav(5, "active");
-  const card = stageCard("stage45", "4+5", "Personalized LinkedIn Sequence", "A 4-touch sequence for " + p.name + " (" + p.title + ").");
+  const card = stageCard("stage45", "4", "Personalized Seq.", "A 5-touch sequence for " + p.name + " (" + p.title + ").");
   showLoading(card, "Writing personalized 4-touch sequence…");
   cardStatus(card, `<span class="loading" style="padding:0"><span class="spinner"></span></span>`);
 
@@ -1042,8 +1041,8 @@ function copySeq(i, btn) {
 function stage6_scoring() {
   const p = currentProspect();
   if (!p) return;
-  setNav(6, "active");
-  const card = stageCard("stage6", 6, "Intent Scoring", "Algorithmic prioritization for " + p.name + ".");
+  setNav(5, "active");
+  const card = stageCard("stage6", 5, "Intent Scoring", "Algorithmic prioritization for " + p.name + ".");
 
   const base = TITLE_FIT[p.title] || 75;
   let fit = base + rint(-5, 5);
@@ -1062,7 +1061,7 @@ function stage6_scoring() {
     ${priority >= 70 ? `<div class="reco-banner">🎯 Priority score ${priority} exceeds threshold — recommended for Sales handoff.</div>` : `<div class="notice indigo">Priority score ${priority} is below the 70 handoff threshold — keep nurturing.</div>`}
   `;
   cardStatus(card, `<span class="status done">✓ Priority ${priority}</span>`);
-  setNav(6, "done");
+  setNav(5, "done");
 
   // animate bars
   requestAnimationFrame(() => {
@@ -1094,8 +1093,8 @@ function stage7_handoff() {
     ? "Priority ≥ 70 — auto-alerting Sales team."
     : "This prospect is below threshold — you can still alert manually.";
 
-  setNav(7, "active");
-  const card = stageCard("stage7", 7, "Sales Handoff", subtitle);
+  setNav(6, "active");
+  const card = stageCard("stage7", 6, "Sales Handoff", subtitle);
 
   if (inCowork) {
     cardBody(card).innerHTML = `
@@ -1124,7 +1123,7 @@ function stage7_handoff() {
   }
 
   cardStatus(card, `<span class="status done">✓ Ready</span>`);
-  setNav(7, "done");
+  setNav(6, "done");
 }
 
 async function alertSales() {
