@@ -337,7 +337,7 @@ const STAGES = [
   { n: 4, title: "Personalized Seq.",  sub: "Outreach 4-touch" },
   { n: 5, title: "Message Variants",   sub: "Day 0–25" },
   { n: 6, title: "Intent Scoring",     sub: "Fit · Intent" },
-  { n: 7, title: "SDR Handoff",        sub: "Alert" },
+  { n: 7, title: "Sales Handoff",        sub: "Alert" },
 ];
 
 // ----- App state (no localStorage) -----
@@ -1059,7 +1059,7 @@ function stage6_scoring() {
       ${scoreBox("intent", "Intent Score", intent)}
       ${scoreBox("prio", "Priority Score", priority)}
     </div>
-    ${priority >= 70 ? `<div class="reco-banner">🎯 Priority score ${priority} exceeds threshold — recommended for SDR handoff.</div>` : `<div class="notice indigo">Priority score ${priority} is below the 70 handoff threshold — keep nurturing.</div>`}
+    ${priority >= 70 ? `<div class="reco-banner">🎯 Priority score ${priority} exceeds threshold — recommended for Sales handoff.</div>` : `<div class="notice indigo">Priority score ${priority} is below the 70 handoff threshold — keep nurturing.</div>`}
   `;
   cardStatus(card, `<span class="status done">✓ Priority ${priority}</span>`);
   setNav(6, "done");
@@ -1081,7 +1081,7 @@ function scoreBox(cls, label, val) {
 }
 
 /* =================================================================
-   STAGE 7 — SDR Handoff
+   STAGE 7 — Sales Handoff
    ================================================================= */
 function stage7_handoff() {
   const p = currentProspect();
@@ -1091,11 +1091,11 @@ function stage7_handoff() {
   const qualifies = s.priority >= 70;
   const inCowork = typeof window.cowork !== "undefined";
   const subtitle = qualifies
-    ? "Priority ≥ 70 — auto-alerting SDR team."
+    ? "Priority ≥ 70 — auto-alerting Sales team."
     : "This prospect is below threshold — you can still alert manually.";
 
   setNav(7, "active");
-  const card = stageCard("stage7", 7, "SDR Handoff", subtitle);
+  const card = stageCard("stage7", 7, "Sales Handoff", subtitle);
 
   if (inCowork) {
     cardBody(card).innerHTML = `
@@ -1103,13 +1103,13 @@ function stage7_handoff() {
         <label for="slackChannel">Slack Channel</label>
         <input type="text" id="slackChannel" placeholder="#sdr-alerts" />
       </div>
-      <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
+      <button class="btn green" id="alertBtn" onclick="alertSales()">🔔 Alert Sales</button>
       <div class="handoff-result" id="handoffResult"></div>
       <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
     `;
     if (qualifies) {
       document.getElementById("slackChannel").value = "C05H4CN6A9G";
-      setTimeout(alertSDR, 300);
+      setTimeout(alertSales, 300);
     }
   } else {
     cardBody(card).innerHTML = `
@@ -1117,7 +1117,7 @@ function stage7_handoff() {
         <label for="webhook">Slack Webhook URL (optional)</label>
         <input type="url" id="webhook" placeholder="https://hooks.slack.com/services/..." />
       </div>
-      <button class="btn green" id="alertBtn" onclick="alertSDR()">🔔 Alert SDR</button>
+      <button class="btn green" id="alertBtn" onclick="alertSales()">🔔 Alert Sales</button>
       <div class="handoff-result" id="handoffResult"></div>
       <div class="handoff-hint">No Slack? Copy the messages above and paste them directly into LinkedIn.</div>
     `;
@@ -1127,14 +1127,14 @@ function stage7_handoff() {
   setNav(7, "done");
 }
 
-async function alertSDR() {
+async function alertSales() {
   const p = currentProspect();
   const s = state.scores;
   const result = document.getElementById("handoffResult");
   const btn = document.getElementById("alertBtn");
   const inCowork = typeof window.cowork !== "undefined";
 
-  const messageText = `🎯 *New SDR Handoff — ${state.company}*\n` +
+  const messageText = `🎯 *New Sales Handoff — ${state.company}*\n` +
     `*${p.name}* — ${p.title}\n` +
     `📍 ${p.location}\n` +
     `Scores → Fit ${s.fit} · Intent ${s.intent} · *Priority ${s.priority}*\n` +
@@ -1147,7 +1147,7 @@ async function alertSDR() {
     if (!channel) {
       result.className = "handoff-result fail";
       result.textContent = "Enter a Slack channel name (e.g. growth-marketing).";
-      btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+      btn.disabled = false; btn.textContent = "🔔 Alert Sales";
       return;
     }
     try {
@@ -1167,7 +1167,7 @@ async function alertSDR() {
     if (!url) {
       result.className = "handoff-result fail";
       result.textContent = "Enter a Slack webhook URL first.";
-      btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+      btn.disabled = false; btn.textContent = "🔔 Alert Sales";
       return;
     }
     try {
@@ -1180,7 +1180,7 @@ async function alertSDR() {
     }
   }
 
-  btn.disabled = false; btn.textContent = "🔔 Alert SDR";
+  btn.disabled = false; btn.textContent = "🔔 Alert Sales";
 }
 
 /* =================================================================
